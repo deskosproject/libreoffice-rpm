@@ -1,0 +1,62 @@
+From 785f89233eb588447af2e5f712c2b555b4fbc344 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Caol=C3=A1n=20McNamara?= <caolanm@redhat.com>
+Date: Fri, 8 Jul 2016 14:50:56 +0100
+Subject: [PATCH] Resolves: rhbz#1352965 gtk3 infinite clipboard recursion with
+ clipit installed
+
+Change-Id: Ib67afaf532b8409e05fffbf1b8312d664460567d
+---
+ vcl/unx/gtk3/gtk3gtkinst.cxx | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/vcl/unx/gtk3/gtk3gtkinst.cxx b/vcl/unx/gtk3/gtk3gtkinst.cxx
+index 25f4590..72599b2 100644
+--- a/vcl/unx/gtk3/gtk3gtkinst.cxx
++++ b/vcl/unx/gtk3/gtk3gtkinst.cxx
+@@ -585,6 +585,7 @@ void VclGtkClipboard::setContents(
+ {
+     osl::ClearableMutexGuard aGuard( m_aMutex );
+     Reference< datatransfer::clipboard::XClipboardOwner > xOldOwner( m_aOwner );
++    bool bOwnerChange = (xOldOwner.is() && xOldOwner != xClipboardOwner);
+     Reference< datatransfer::XTransferable > xOldContents( m_aContents );
+     m_aContents = xTrans;
+     m_aOwner = xClipboardOwner;
+@@ -592,6 +593,10 @@ void VclGtkClipboard::setContents(
+     std::list< Reference< datatransfer::clipboard::XClipboardListener > > xListeners( m_aListeners );
+     datatransfer::clipboard::ClipboardEvent aEv;
+ 
++    GtkClipboard* clipboard = gtk_clipboard_get(m_nSelection);
++    if (bOwnerChange)
++        gtk_clipboard_clear(clipboard);
++    assert(m_aGtkTargets.empty());
+     if (m_aContents.is())
+     {
+         css::uno::Sequence<css::datatransfer::DataFlavor> aFormats = xTrans->getTransferDataFlavors();
+@@ -605,15 +610,11 @@ void VclGtkClipboard::setContents(
+             aEntry.info = 0;
+             aGtkTargets.push_back(aEntry);
+ 
+-            GtkClipboard* clipboard = gtk_clipboard_get(m_nSelection);
+             gtk_clipboard_set_with_data(clipboard, aGtkTargets.data(), aGtkTargets.size(),
+                                         ClipboardGetFunc, ClipboardClearFunc, this);
+             gtk_clipboard_set_can_store(clipboard, aGtkTargets.data(), aGtkTargets.size());
+         }
+ 
+-        for (auto &a : m_aGtkTargets)
+-            g_free(a.target);
+-
+         m_aGtkTargets = aGtkTargets;
+     }
+ 
+@@ -621,7 +622,7 @@ void VclGtkClipboard::setContents(
+ 
+     aGuard.clear();
+ 
+-    if( xOldOwner.is() && xOldOwner != xClipboardOwner )
++    if (bOwnerChange)
+         xOldOwner->lostOwnership( this, xOldContents );
+     for( std::list< Reference< datatransfer::clipboard::XClipboardListener > >::iterator it =
+          xListeners.begin(); it != xListeners.end() ; ++it )
+-- 
+2.7.4
+

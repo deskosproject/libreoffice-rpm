@@ -1,0 +1,336 @@
+From 973f491109d6e1ae7a0b2bf646c72c072a3e2004 Mon Sep 17 00:00:00 2001
+From: David Tardon <dtardon@redhat.com>
+Date: Thu, 24 Mar 2016 14:52:35 +0100
+Subject: [PATCH] tdf#39271 allow to export only notes pages
+
+(cherry picked from commit 6392347e27ed500b30acc62e9e27618eab5a8ee0)
+
+Change-Id: Ia03062cf31b6bab8196dc317a7e8fbcfc86fadf0
+---
+ filter/source/pdf/impdialog.cxx                    | 22 ++++++++++++++
+ filter/source/pdf/impdialog.hxx                    |  4 +++
+ filter/source/pdf/pdfexport.cxx                    | 22 ++++++++------
+ filter/source/pdf/pdfexport.hxx                    |  1 +
+ filter/uiconfig/ui/pdfgeneralpage.ui               | 34 ++++++++++++++++++----
+ .../schema/org/openoffice/Office/Common.xcs        |  7 +++++
+ 6 files changed, 75 insertions(+), 15 deletions(-)
+
+diff --git a/filter/source/pdf/impdialog.cxx b/filter/source/pdf/impdialog.cxx
+index f1c86a8..d158b68 100644
+--- a/filter/source/pdf/impdialog.cxx
++++ b/filter/source/pdf/impdialog.cxx
+@@ -84,6 +84,7 @@ ImpPDFTabDialog::ImpPDFTabDialog(vcl::Window* pParent, Sequence< PropertyValue >
+     mbExportNotes( true ),
+     mbViewPDF( false ),
+     mbExportNotesPages( false ),
++    mbExportOnlyNotesPages( false ),
+     mbUseTransitionEffects( false ),
+     mbIsSkipEmptyPages( true ),
+     mbIsExportPlaceholders( false ),
+@@ -192,7 +193,10 @@ ImpPDFTabDialog::ImpPDFTabDialog(vcl::Window* pParent, Sequence< PropertyValue >
+     mbUseTaggedPDF = maConfigItem.ReadBool( "UseTaggedPDF", false );
+     mnPDFTypeSelection =  maConfigItem.ReadInt32( "SelectPdfVersion", 0 );
+     if ( mbIsPresentation )
++    {
+         mbExportNotesPages = maConfigItem.ReadBool( "ExportNotesPages", false );
++        mbExportOnlyNotesPages = maConfigItem.ReadBool( "ExportOnlyNotesPages", false );
++    }
+     mbExportNotes = maConfigItem.ReadBool( "ExportNotes", false );
+     mbViewPDF = maConfigItem.ReadBool( "ViewPDFAfterExport", false );
+ 
+@@ -394,7 +398,10 @@ Sequence< PropertyValue > ImpPDFTabDialog::GetFilterData()
+     maConfigItem.WriteInt32("SelectPdfVersion", mnPDFTypeSelection );
+ 
+     if ( mbIsPresentation )
++    {
+         maConfigItem.WriteBool( "ExportNotesPages", mbExportNotesPages );
++        maConfigItem.WriteBool( "ExportOnlyNotesPages", mbExportOnlyNotesPages );
++    }
+     maConfigItem.WriteBool( "ExportNotes", mbExportNotes );
+     maConfigItem.WriteBool( "ViewPDFAfterExport", mbViewPDF );
+ 
+@@ -543,6 +550,7 @@ ImpPDFTabGeneralPage::ImpPDFTabGeneralPage(vcl::Window* pParent, const SfxItemSe
+     get(mpCbExportHiddenSlides, "hiddenpages");
+     get(mpCbExportNotes, "comments");
+     get(mpCbExportNotesPages, "notes");
++    get(mpCbExportOnlyNotesPages, "onlynotes");
+     get(mpCbExportEmptyPages, "emptypages");
+     get(mpCbExportPlaceholders, "exportplaceholders" );
+     get(mpCbViewPDF, "viewpdf");
+@@ -581,6 +589,7 @@ void ImpPDFTabGeneralPage::dispose()
+     mpCbExportNotes.clear();
+     mpCbViewPDF.clear();
+     mpCbExportNotesPages.clear();
++    mpCbExportOnlyNotesPages.clear();
+     mpCbExportEmptyPages.clear();
+     mpCbExportPlaceholders.clear();
+     mpCbAddStream.clear();
+@@ -664,6 +673,10 @@ void ImpPDFTabGeneralPage::SetFilterConfigItem( ImpPDFTabDialog* paParent )
+         mpRbRange->SetText(get<FixedText>("slides")->GetText());
+         mpCbExportNotesPages->Show();
+         mpCbExportNotesPages->Check(paParent->mbExportNotesPages);
++        mpCbExportNotesPages->SetToggleHdl( LINK(this, ImpPDFTabGeneralPage, ToggleExportNotesPagesHdl ) );
++        mpCbExportOnlyNotesPages->Show();
++        mpCbExportOnlyNotesPages->Check(paParent->mbExportOnlyNotesPages);
++        mpCbExportOnlyNotesPages->Enable(paParent->mbExportNotesPages);
+         mpCbExportHiddenSlides->Show();
+         mpCbExportHiddenSlides->Check(paParent->mbExportHiddenSlides);
+     }
+@@ -671,6 +684,8 @@ void ImpPDFTabGeneralPage::SetFilterConfigItem( ImpPDFTabDialog* paParent )
+     {
+         mpCbExportNotesPages->Show(false);
+         mpCbExportNotesPages->Check(false);
++        mpCbExportOnlyNotesPages->Show(false);
++        mpCbExportOnlyNotesPages->Check(false);
+         mpCbExportHiddenSlides->Show(false);
+         mpCbExportHiddenSlides->Check(false);
+     }
+@@ -701,7 +716,10 @@ void ImpPDFTabGeneralPage::GetFilterConfigItem( ImpPDFTabDialog* paParent )
+     paParent->mbExportNotes = mpCbExportNotes->IsChecked();
+     paParent->mbViewPDF = mpCbViewPDF->IsChecked();
+     if ( mbIsPresentation )
++    {
+         paParent->mbExportNotesPages = mpCbExportNotesPages->IsChecked();
++        paParent->mbExportOnlyNotesPages = mpCbExportOnlyNotesPages->IsChecked();
++    }
+     paParent->mbExportBookmarks = mpCbExportBookmarks->IsChecked();
+     if ( mbIsPresentation )
+         paParent->mbExportHiddenSlides = mpCbExportHiddenSlides->IsChecked();
+@@ -770,6 +788,10 @@ IMPL_LINK_NOARG_TYPED(ImpPDFTabGeneralPage, ToggleExportFormFieldsHdl, CheckBox&
+     mpFormsFrame->Enable(mpCbExportFormFields->IsChecked());
+ }
+ 
++IMPL_LINK_NOARG_TYPED(ImpPDFTabGeneralPage, ToggleExportNotesPagesHdl, CheckBox&, void)
++{
++    mpCbExportOnlyNotesPages->Enable(mpCbExportNotesPages->IsChecked());
++}
+ 
+ IMPL_LINK_NOARG_TYPED(ImpPDFTabGeneralPage, ToggleCompressionHdl, RadioButton&, void)
+ {
+diff --git a/filter/source/pdf/impdialog.hxx b/filter/source/pdf/impdialog.hxx
+index 72938b0..db62c77 100644
+--- a/filter/source/pdf/impdialog.hxx
++++ b/filter/source/pdf/impdialog.hxx
+@@ -104,6 +104,7 @@ protected:
+     bool                    mbExportNotes;
+     bool                    mbViewPDF;
+     bool                    mbExportNotesPages;
++    bool                    mbExportOnlyNotesPages;
+     bool                    mbUseTransitionEffects;
+     bool                    mbIsSkipEmptyPages;
+     bool                    mbIsExportPlaceholders;
+@@ -219,6 +220,7 @@ class ImpPDFTabGeneralPage : public SfxTabPage
+     VclPtr<CheckBox>     mpCbExportNotes;
+     VclPtr<CheckBox>     mpCbViewPDF;
+     VclPtr<CheckBox>     mpCbExportNotesPages;
++    VclPtr<CheckBox>     mpCbExportOnlyNotesPages;
+ 
+     VclPtr<CheckBox>     mpCbExportEmptyPages;
+     VclPtr<CheckBox>     mpCbExportPlaceholders;
+@@ -239,8 +241,10 @@ class ImpPDFTabGeneralPage : public SfxTabPage
+     DECL_LINK_TYPED( ToggleWatermarkHdl, CheckBox&, void );
+     DECL_LINK_TYPED( ToggleAddStreamHdl, CheckBox&, void );
+     DECL_LINK_TYPED( ToggleExportFormFieldsHdl, CheckBox&, void );
++    DECL_LINK_TYPED( ToggleExportNotesPagesHdl, CheckBox&, void );
+     void TogglePagesHdl();
+ 
++
+ public:
+     DECL_LINK_TYPED( ToggleExportPDFAHdl, CheckBox&, void );
+ 
+diff --git a/filter/source/pdf/pdfexport.cxx b/filter/source/pdf/pdfexport.cxx
+index a55bdc9..18d8e31 100644
+--- a/filter/source/pdf/pdfexport.cxx
++++ b/filter/source/pdf/pdfexport.cxx
+@@ -100,6 +100,7 @@ PDFExport::PDFExport( const Reference< XComponent >& rxSrcDoc,
+     mbExportNotes               ( true ),
+     mbViewPDF                   ( true ),
+     mbExportNotesPages          ( false ),
++    mbExportOnlyNotesPages      ( false ),
+     mbUseTransitionEffects      ( true ),
+     mbExportBookmarks           ( true ),
+     mbExportHiddenSlides        ( false ),
+@@ -464,6 +465,8 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >&
+                     rFilterData[ nData ].Value >>= mbViewPDF;
+                 else if ( rFilterData[ nData ].Name == "ExportNotesPages" )
+                     rFilterData[ nData ].Value >>= mbExportNotesPages;
++                else if ( rFilterData[ nData ].Name == "ExportOnlyNotesPages" )
++                    rFilterData[ nData ].Value >>= mbExportOnlyNotesPages;
+                 else if ( rFilterData[ nData ].Name == "UseTransitionEffects" )
+                     rFilterData[ nData ].Value >>= mbUseTransitionEffects;
+                 else if ( rFilterData[ nData ].Name == "ExportFormFields" )
+@@ -844,7 +847,7 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >&
+                     aSelection = Any();
+                     aSelection <<= mxSrcDoc;
+                 }
+-                bool bSecondPassForImpressNotes = false;
++                bool bExportNotesPages = false;
+                 bool bReChangeToNormalView = false;
+                 const OUString sShowOnlineLayout( "ShowOnlineLayout" );
+                 bool bReHideWhitespace = false;
+@@ -881,10 +884,11 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >&
+ 
+                 if ( mbExportNotesPages && aCreator == "Impress" )
+                 {
+-                    uno::Reference< drawing::XShapes > xShapes;     // sj: do not allow to export notes when
+-                    if ( ! ( aSelection >>= xShapes ) )             // exporting a selection -> todo: in the dialog
+-                        bSecondPassForImpressNotes = true;      // the export notes checkbox needs to be disabled
++                    uno::Reference< drawing::XShapes > xShapes;     // do not allow to export notes when exporting a selection
++                    if ( ! ( aSelection >>= xShapes ) )             // TODO: in the dialog the export notes checkbox needs to be disabled
++                        bExportNotesPages = true;
+                 }
++                const bool bExportPages = bExportNotesPages ? !mbExportOnlyNotesPages : true;
+ 
+                 if( aPageRange.isEmpty() )
+                 {
+@@ -898,18 +902,18 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >&
+                     if ( pResMgr )
+                     {
+                         sal_Int32 nTotalPageCount = aRangeEnum.size();
+-                        if ( bSecondPassForImpressNotes )
++                        if ( bExportPages && bExportNotesPages )
+                             nTotalPageCount *= 2;
+                         mxStatusIndicator->start( ResId( PDF_PROGRESS_BAR, *pResMgr ), nTotalPageCount );
+                     }
+                 }
+ 
+-                if( nPageCount > 0 )
++                bRet = nPageCount > 0;
++
++                if ( bRet && bExportPages )
+                     bRet = ExportSelection( *pPDFWriter, xRenderable, aSelection, aRangeEnum, aRenderOptions, nPageCount );
+-                else
+-                    bRet = false;
+ 
+-                if ( bRet && bSecondPassForImpressNotes )
++                if ( bRet && bExportNotesPages )
+                 {
+                     rExportNotesValue <<= sal_True;
+                     bRet = ExportSelection( *pPDFWriter, xRenderable, aSelection, aRangeEnum, aRenderOptions, nPageCount );
+diff --git a/filter/source/pdf/pdfexport.hxx b/filter/source/pdf/pdfexport.hxx
+index 7e8528f..f802585 100644
+--- a/filter/source/pdf/pdfexport.hxx
++++ b/filter/source/pdf/pdfexport.hxx
+@@ -50,6 +50,7 @@ private:
+     bool                mbExportPlaceholders;
+     bool                mbViewPDF;
+     bool                mbExportNotesPages;
++    bool                mbExportOnlyNotesPages;
+     bool                mbUseTransitionEffects;
+     bool                mbExportBookmarks;
+     bool                mbExportHiddenSlides;
+diff --git a/filter/uiconfig/ui/pdfgeneralpage.ui b/filter/uiconfig/ui/pdfgeneralpage.ui
+index 8a46e0f..457ceda 100644
+--- a/filter/uiconfig/ui/pdfgeneralpage.ui
++++ b/filter/uiconfig/ui/pdfgeneralpage.ui
+@@ -1,5 +1,5 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+-<!-- Generated with glade 3.18.3 -->
++<!-- Generated with glade 3.19.0 -->
+ <interface>
+   <requires lib="gtk+" version="3.0"/>
+   <object class="GtkAdjustment" id="adjustment1">
+@@ -111,8 +111,8 @@
+                       <object class="GtkLabel" id="slides">
+                         <property name="can_focus">False</property>
+                         <property name="no_show_all">True</property>
+-                        <property name="xalign">0</property>
+                         <property name="label" translatable="yes">Slides:</property>
++                        <property name="xalign">0</property>
+                       </object>
+                       <packing>
+                         <property name="left_attach">0</property>
+@@ -191,9 +191,9 @@
+                                   <object class="GtkLabel" id="label6">
+                                     <property name="visible">True</property>
+                                     <property name="can_focus">False</property>
+-                                    <property name="xalign">0</property>
+                                     <property name="label" translatable="yes">_Quality:</property>
+                                     <property name="use_underline">True</property>
++                                    <property name="xalign">0</property>
+                                   </object>
+                                 </child>
+                               </object>
+@@ -378,10 +378,10 @@
+                           <object class="GtkLabel" id="watermarklabel">
+                             <property name="visible">True</property>
+                             <property name="can_focus">False</property>
+-                            <property name="xalign">0</property>
+                             <property name="label" translatable="yes">Text:</property>
+                             <property name="use_underline">True</property>
+                             <property name="mnemonic_widget">watermarkentry</property>
++                            <property name="xalign">0</property>
+                           </object>
+                         </child>
+                       </object>
+@@ -512,10 +512,10 @@
+                           <object class="GtkLabel" id="label7">
+                             <property name="visible">True</property>
+                             <property name="can_focus">False</property>
+-                            <property name="xalign">0</property>
+                             <property name="label" translatable="yes">Submit _format:</property>
+                             <property name="use_underline">True</property>
+                             <property name="mnemonic_widget">format</property>
++                            <property name="xalign">0</property>
+                           </object>
+                           <packing>
+                             <property name="left_attach">0</property>
+@@ -649,7 +649,7 @@
+                   </object>
+                   <packing>
+                     <property name="left_attach">0</property>
+-                    <property name="top_attach">8</property>
++                    <property name="top_attach">9</property>
+                   </packing>
+                 </child>
+                 <child>
+@@ -667,6 +667,28 @@
+                     <property name="top_attach">8</property>
+                   </packing>
+                 </child>
++                <child>
++                  <object class="GtkAlignment" id="onlynotesframe">
++                    <property name="visible">True</property>
++                    <property name="can_focus">False</property>
++                    <property name="left_padding">12</property>
++                    <child>
++                      <object class="GtkCheckButton" id="onlynotes">
++                        <property name="label" translatable="yes">Export onl_y notes pages</property>
++                        <property name="visible">True</property>
++                        <property name="can_focus">True</property>
++                        <property name="receives_default">False</property>
++                        <property name="use_underline">True</property>
++                        <property name="xalign">0</property>
++                        <property name="draw_indicator">True</property>
++                      </object>
++                    </child>
++                  </object>
++                  <packing>
++                    <property name="left_attach">0</property>
++                    <property name="top_attach">8</property>
++                  </packing>
++                </child>
+               </object>
+             </child>
+           </object>
+diff --git a/officecfg/registry/schema/org/openoffice/Office/Common.xcs b/officecfg/registry/schema/org/openoffice/Office/Common.xcs
+index 8662cfc..175d785 100644
+--- a/officecfg/registry/schema/org/openoffice/Office/Common.xcs
++++ b/officecfg/registry/schema/org/openoffice/Office/Common.xcs
+@@ -5141,6 +5141,13 @@
+             </info>
+             <value>false</value>
+           </prop>
++          <prop oor:name="ExportOnlyNotesPages" oor:type="xs:boolean" oor:nillable="false">
++            <info>
++              <desc>Specifies if only notes pages (i.e., not slides) are exported to PDF. (Notes pages
++              are available in Impress documents only).</desc>
++            </info>
++            <value>false</value>
++          </prop>
+           <prop oor:name="UseTransitionEffects" oor:type="xs:boolean" oor:nillable="false">
+             <info>
+               <desc>Specifies slide transitions are exported to PDF. This option
+-- 
+2.7.4
+
