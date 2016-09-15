@@ -1,0 +1,8 @@
+= DeskOS: libreoffice RPM
+
+This is the _libreoffice_ RPM package for the *DeskOS* operating system.
+
+Upstream comes from a Fedora 24 http://koji.fedoraproject.org/koji/buildinfo?buildID=800620[build].
+
+SRPM:
+https://kojipkgs.fedoraproject.org//packages/libreoffice/5.1.5.2/6.fc24/src/libreoffice-5.1.5.2-6.fc24.src.rpm[libreoffice-5.1.5.2-6.fc24.src.rpm]

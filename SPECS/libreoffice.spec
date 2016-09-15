@@ -8,7 +8,7 @@
 %define libo_buildfix %{nil}
 # rhbz#715152 state vendor
 %if 0%{?rhel}
-%define vendoroption --with-vendor="Red Hat, Inc."
+%define vendoroption --with-vendor="DeskOS Project"
 %define libo_use_python3 %{nil}
 %define libo_python python
 %define libo_python_sitearch %{python_sitearch}
@@ -58,7 +58,7 @@ Summary:        Free Software Productivity Suite
 Name:           libreoffice
 Epoch:          1
 Version:        %{libo_version}.2
-Release:        6%{?libo_prerelease}%{?dist}
+Release:        6.1%{?libo_prerelease}%{?dist}
 License:        (MPLv1.1 or LGPLv3+) and LGPLv3 and LGPLv2+ and BSD and (MPLv1.1 or GPLv2 or LGPLv2 or Netscape) and Public Domain and ASL 2.0 and Artistic and MPLv2.0 and CC0
 URL:            http://www.libreoffice.org/
 
@@ -2354,6 +2354,9 @@ done
 %endif
 
 %changelog
+* Wed Sep 14 2016 Ricardo Arguello <rarguello@deskosproject.org> - 1:5.1.5.2-6.1
+- Rebuilt for DeskOS
+
 * Tue Sep 13 2016 Caolán McNamara <caolanm@redhat.com> - 1:5.1.5.2-6
 - Resolves: rhbz#1375168 impress annotation menu crashes
 - add xdg-email as the default email route cause it can attach to thunderbird
